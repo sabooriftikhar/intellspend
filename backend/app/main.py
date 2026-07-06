@@ -10,10 +10,11 @@ origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
 ]
-
-if settings.FRONTEND_URL:
-    origins.append(settings.FRONTEND_URL)
     
+frontend_url = getattr(settings, "FRONTEND_URL", "")
+
+if frontend_url:
+    origins.append(frontend_url)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
