@@ -21,7 +21,7 @@ def create_transaction(
         raise HTTPException(status_code=404, detail="Book not found")
 
     account = crud.account.get_account(db, account_id=transaction.account_id, user_id=current_user.id)
-    if not account or account.book_id != book.id:
+    if not account or not crud.account.account_in_book(account, book.id):
         raise HTTPException(status_code=404, detail="Account not found in this book")
 
     if transaction.category_id:
@@ -35,7 +35,7 @@ def create_transaction(
         if not transaction.transfer_to_account_id:
             raise HTTPException(status_code=400, detail="Transfer must have a destination account")
         transfer_to = crud.account.get_account(db, account_id=transaction.transfer_to_account_id, user_id=current_user.id)
-        if not transfer_to or transfer_to.book_id != book.id:
+        if not transfer_to or not crud.account.account_in_book(transfer_to, book.id):
             raise HTTPException(status_code=404, detail="Destination account not found in this book")
 
     return crud.transaction.create_transaction(db=db, transaction=transaction, user_id=current_user.id)

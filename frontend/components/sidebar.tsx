@@ -31,9 +31,13 @@ export default function Sidebar() {
   const pathname = usePathname();
   const { logout, user } = useAuth();
 
-  const initials = user?.email
-    ? user.email.slice(0, 2).toUpperCase()
-    : 'IS';
+  const initials = user?.name
+    ? user.name.slice(0, 2).toUpperCase()
+    : user?.email
+      ? user.email.slice(0, 2).toUpperCase()
+      : 'IS';
+
+  const displayLabel = user?.name || user?.email || '';
 
   return (
     <aside className="w-60 flex-shrink-0 bg-sidebar border-r border-sidebar-border flex flex-col hidden md:flex h-screen sticky top-0">
@@ -100,7 +104,7 @@ export default function Sidebar() {
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold shrink-0">
               {initials}
             </div>
-            <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+            <p className="text-xs text-muted-foreground truncate">{displayLabel}</p>
           </div>
         )}
       </div>

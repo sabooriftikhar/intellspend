@@ -10,6 +10,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
+    name = Column(String, nullable=True)          # display name, optional
     created_at = Column(DateTime, server_default=sa.func.now())
 
     books = relationship("Book", back_populates="user")

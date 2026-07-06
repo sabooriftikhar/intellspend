@@ -9,7 +9,7 @@ class AccountBase(BaseModel):
     credit_limit: float | None = None
     statement_day: int | None = None
     due_day: int | None = None
-    book_id: int
+    book_ids: list[int]
 
 class AccountCreate(AccountBase):
     pass
@@ -22,6 +22,7 @@ class AccountUpdate(BaseModel):
     credit_limit: float | None = None
     statement_day: int | None = None
     due_day: int | None = None
+    book_ids: list[int] | None = None
 
 class Account(AccountBase):
     id: int

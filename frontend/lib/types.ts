@@ -12,7 +12,7 @@ export interface Book {
 export interface Account {
   id: number;
   user_id: number;
-  book_id: number;
+  book_ids: number[];
   name: string;
   type: AccountType;
   currency: string;

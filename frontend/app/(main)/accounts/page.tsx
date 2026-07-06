@@ -18,6 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { formatCurrency } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { useBook } from '@/contexts/BookContext';
+import { usePreferences } from '@/contexts/PreferencesContext';
 
 // ── Types ──────────────────────────────────────────────────────
 interface AccountWithBalance extends Account {
@@ -71,7 +72,7 @@ const emptyForm = {
   credit_limit: '',
   statement_day: '',
   due_day: '',
-  book_id: '',
+  book_ids: [] as string[],
 };
 
 export function AccountFormModal({
@@ -83,6 +84,13 @@ export function AccountFormModal({
 
   useEffect(() => {
     if (open) {
+      const defaultIds = initial?.book_ids?.length
+        ? initial.book_ids.map(String)
+        : defaultBookId
+          ? [String(defaultBookId)]
+          : books[0]
+            ? [String(books[0].id)]
+            : [];
       setForm({
         name: initial?.name ?? '',
         type: initial?.type ?? 'bank',
@@ -91,18 +99,28 @@ export function AccountFormModal({
         credit_limit: initial?.credit_limit != null ? String(initial.credit_limit) : '',
         statement_day: initial?.statement_day != null ? String(initial.statement_day) : '',
         due_day: initial?.due_day != null ? String(initial.due_day) : '',
-        book_id: String(initial?.book_id ?? defaultBookId ?? books[0]?.id ?? ''),
+        book_ids: defaultIds,
       });
       setError('');
     }
   }, [open, initial, books, defaultBookId]);
 
-  const set = (key: keyof typeof emptyForm, value: string) =>
+  const set = (key: keyof typeof emptyForm, value: string | string[]) =>
     setForm((f) => ({ ...f, [key]: value }));
+
+  const toggleBook = (bookId: number) => {
+    const id = String(bookId);
+    setForm((f) => ({
+      ...f,
+      book_ids: f.book_ids.includes(id)
+        ? f.book_ids.filter((b) => b !== id)
+        : [...f.book_ids, id],
+    }));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name.trim() || !form.book_id) return;
+    if (!form.name.trim() || form.book_ids.length === 0) return;
     setSaving(true);
     setError('');
     const payload = {
@@ -113,7 +131,7 @@ export function AccountFormModal({
       credit_limit: form.credit_limit ? parseFloat(form.credit_limit) : null,
       statement_day: form.statement_day ? parseInt(form.statement_day) : null,
       due_day: form.due_day ? parseInt(form.due_day) : null,
-      book_id: parseInt(form.book_id),
+      book_ids: form.book_ids.map((id) => parseInt(id)),
     };
     try {
       if (initial) {
@@ -182,19 +200,37 @@ export function AccountFormModal({
               onChange={(e) => set('name', e.target.value)} className="rounded-xl" autoFocus />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            {/* Book */}
-            <div className="space-y-1.5">
-              <Label htmlFor="acc-book">Book <span className="text-destructive">*</span></Label>
-              <Select id="acc-book" required value={form.book_id}
-                onChange={(e) => set('book_id', e.target.value)} className="rounded-xl h-10">
-                <option value="">Select book</option>
-                {books.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-              </Select>
+          {/* Books */}
+          <div className="space-y-1.5">
+            <Label>Books <span className="text-destructive">*</span></Label>
+            <div className="flex flex-wrap gap-2">
+              {books.map((b) => {
+                const selected = form.book_ids.includes(String(b.id));
+                return (
+                  <button
+                    key={b.id}
+                    type="button"
+                    onClick={() => toggleBook(b.id)}
+                    className={cn(
+                      'rounded-lg border px-3 py-1.5 text-xs font-medium transition-all',
+                      selected
+                        ? 'border-primary bg-primary/8 text-primary'
+                        : 'border-border bg-card text-muted-foreground hover:bg-secondary'
+                    )}
+                  >
+                    {b.name}
+                  </button>
+                );
+              })}
             </div>
+            {books.length === 0 && (
+              <p className="text-xs text-muted-foreground">Create a book first to assign accounts.</p>
+            )}
+          </div>
 
+          <div className="grid grid-cols-2 gap-3">
             {/* Currency */}
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 col-span-2 sm:col-span-1">
               <Label htmlFor="acc-currency">Currency</Label>
               <Select id="acc-currency" value={form.currency}
                 onChange={(e) => set('currency', e.target.value)} className="rounded-xl h-10">
@@ -239,7 +275,7 @@ export function AccountFormModal({
 
           {error && <p className="text-sm text-destructive bg-destructive/8 rounded-xl px-3 py-2">{error}</p>}
 
-          <Button type="submit" disabled={saving || !form.name.trim() || !form.book_id} className="w-full rounded-xl">
+          <Button type="submit" disabled={saving || !form.name.trim() || form.book_ids.length === 0} className="w-full rounded-xl">
             {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
             {initial ? 'Save changes' : 'Create account'}
           </Button>
@@ -252,6 +288,7 @@ export function AccountFormModal({
 // ── Main page ──────────────────────────────────────────────────
 export default function AccountsPage() {
   const { books, activeBook } = useBook();
+  const { preferences } = usePreferences();
   const [accounts, setAccounts] = useState<AccountWithBalance[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -316,12 +353,13 @@ export default function AccountsPage() {
 
   const totalAssets = bankAccounts.reduce((s, a) => s + Math.max(a.balance, 0), 0);
   const totalDebt = creditCards.reduce((s, a) => s + (a.balance < 0 ? Math.abs(a.balance) : 0), 0);
+  const displayCurrency = preferences.displayCurrency || accounts[0]?.currency || 'USD';
 
   const AccountCard = ({ acc }: { acc: AccountWithBalance }) => {
     const cfg = typeConfig[acc.type];
     const Icon = cfg.icon;
     const isPos = acc.balance >= 0;
-    const book = books.find((b) => b.id === acc.book_id);
+    const accountBooks = books.filter((b) => acc.book_ids.includes(b.id));
 
     return (
       <div className={cn(
@@ -336,9 +374,11 @@ export default function AccountsPage() {
             </div>
             <div className="min-w-0">
               <p className="font-semibold text-foreground truncate text-sm">{acc.name}</p>
-              <div className="flex items-center gap-1.5 mt-0.5">
+              <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                 <Badge variant="secondary" className="text-[10px] py-0 px-1.5">{cfg.label}</Badge>
-                {book && <Badge variant="secondary" className="text-[10px] py-0 px-1.5">{book.name}</Badge>}
+                {accountBooks.map((book) => (
+                  <Badge key={book.id} variant="secondary" className="text-[10px] py-0 px-1.5">{book.name}</Badge>
+                ))}
               </div>
             </div>
           </div>
@@ -426,7 +466,7 @@ export default function AccountsPage() {
           <Banknote className="h-4 w-4 text-accent-green" />
           <div>
             <p className="text-xs text-muted-foreground">Total assets</p>
-            <p className="text-lg font-bold text-accent-green">{formatCurrency(totalAssets, 'USD')}</p>
+            <p className="text-lg font-bold text-accent-green">{formatCurrency(totalAssets, displayCurrency)}</p>
           </div>
         </div>
         {totalDebt > 0 && (
@@ -434,7 +474,7 @@ export default function AccountsPage() {
             <CreditCard className="h-4 w-4 text-destructive" />
             <div>
               <p className="text-xs text-muted-foreground">Total debt</p>
-              <p className="text-lg font-bold text-destructive">{formatCurrency(totalDebt, 'USD')}</p>
+              <p className="text-lg font-bold text-destructive">{formatCurrency(totalDebt, displayCurrency)}</p>
             </div>
           </div>
         )}

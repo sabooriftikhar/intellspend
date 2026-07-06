@@ -22,6 +22,17 @@ export default function TransactionsPage() {
   const [isLoading, setIsLoading]       = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [modalOpen, setModalOpen]       = useState(false);
+  const [editTarget, setEditTarget]     = useState<Transaction | null>(null);
+
+  const openCreate = () => {
+    setEditTarget(null);
+    setModalOpen(true);
+  };
+
+  const openEdit = (tx: Transaction) => {
+    setEditTarget(tx);
+    setModalOpen(true);
+  };
 
   const fetchAll = useCallback(async () => {
     try {
@@ -80,7 +91,7 @@ export default function TransactionsPage() {
             <RefreshCw className={cn('h-3 w-3', isRefreshing && 'animate-spin')} />
             Refresh
           </Button>
-          <Button size="sm" onClick={() => setModalOpen(true)}
+          <Button size="sm" onClick={openCreate}
             className="rounded-xl h-8 gap-1.5 text-xs font-semibold">
             <Plus className="h-3.5 w-3.5" />
             New Transaction
@@ -114,12 +125,17 @@ export default function TransactionsPage() {
           accounts={accounts}
           categories={categories}
           onRefresh={refresh}
+          onEdit={openEdit}
         />
       )}
 
       <AddTransactionModal
         open={modalOpen}
-        onOpenChange={setModalOpen}
+        onOpenChange={(open) => {
+          setModalOpen(open);
+          if (!open) setEditTarget(null);
+        }}
+        initial={editTarget}
         accounts={accounts}
         categories={categories}
         onSuccess={refresh}

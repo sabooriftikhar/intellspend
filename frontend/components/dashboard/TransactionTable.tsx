@@ -5,6 +5,7 @@ import {
   ArrowUpDown,
   Search,
   Trash2,
+  Pencil,
   Check,
   X,
   ChevronDown,
@@ -29,6 +30,7 @@ interface TransactionTableProps {
   accounts: Account[];
   categories: Category[];
   onRefresh: () => void;
+  onEdit: (tx: Transaction) => void;
 }
 
 interface EditingCell {
@@ -60,6 +62,7 @@ export default function TransactionTable({
   accounts,
   categories,
   onRefresh,
+  onEdit,
 }: TransactionTableProps) {
   const [search, setSearch] = useState('');
   const [filterAccount, setFilterAccount] = useState('');
@@ -246,7 +249,7 @@ export default function TransactionTable({
                   <SortButton field="amount">Amount</SortButton>
                 </div>
               </th>
-              <th className="px-3 py-3 w-14" />
+              <th className="px-3 py-3 w-20" />
             </tr>
           </thead>
           <tbody>
@@ -428,17 +431,29 @@ export default function TransactionTable({
                             )}
                           </td>
 
-                          {/* Delete */}
+                          {/* Actions */}
                           <td className="px-3 py-3">
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg hover:bg-destructive/10"
-                              onClick={() => deleteTransaction(tx.id)}
-                              disabled={isDeleting}
-                            >
-                              <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                            </Button>
+                            <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-7 w-7 rounded-lg hover:bg-primary/10"
+                                onClick={() => onEdit(tx)}
+                                title="Edit transaction"
+                              >
+                                <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-7 w-7 rounded-lg hover:bg-destructive/10"
+                                onClick={() => deleteTransaction(tx.id)}
+                                disabled={isDeleting}
+                                title="Delete transaction"
+                              >
+                                <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                              </Button>
+                            </div>
                           </td>
                         </tr>
                       );

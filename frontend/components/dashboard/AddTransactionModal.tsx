@@ -9,9 +9,9 @@ import { Select } from '@/components/ui/select';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog';
-import { Account, Category, TransactionKind, AccountType, CategoryKind } from '@/lib/types';
+import { Account, Category, TransactionKind, AccountType, CategoryKind, Transaction } from '@/lib/types';
 import { useBook } from '@/contexts/BookContext';
-import { Plus, Loader2, TrendingDown, TrendingUp, ArrowLeftRight, ChevronDown, X } from 'lucide-react';
+import { Plus, Loader2, TrendingDown, TrendingUp, ArrowLeftRight, ChevronDown, X, Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // ── Inline quick-add forms ─────────────────────────────────────
@@ -40,7 +40,7 @@ function QuickAddAccount({ books, defaultBookId, onCreated, onCancel }: QuickAdd
         type,
         currency,
         opening_balance: 0,
-        book_id: parseInt(bookId),
+        book_ids: [parseInt(bookId)],
       });
       onCreated(res.data);
     } catch (err: unknown) {
@@ -183,6 +183,7 @@ interface AddTransactionModalProps {
   accounts: Account[];
   categories: Category[];
   onSuccess: () => void;
+  initial?: Transaction | null;
 }
 
 const defaultForm = {
@@ -202,9 +203,10 @@ const kindConfig = {
 };
 
 export default function AddTransactionModal({
-  open, onOpenChange, accounts: initialAccounts, categories: initialCategories, onSuccess,
+  open, onOpenChange, accounts: initialAccounts, categories: initialCategories, onSuccess, initial,
 }: AddTransactionModalProps) {
   const { activeBook, books } = useBook();
+  const isEditing = Boolean(initial);
   const [form, setForm] = useState(defaultForm);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -220,6 +222,26 @@ export default function AddTransactionModal({
   // Sync when parent refreshes
   useEffect(() => { setAccounts(initialAccounts); }, [initialAccounts]);
   useEffect(() => { setCategories(initialCategories); }, [initialCategories]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (initial) {
+      setForm({
+        kind: initial.kind,
+        account_id: String(initial.account_id),
+        category_id: initial.category_id ? String(initial.category_id) : '',
+        transfer_to_account_id: initial.transfer_to_account_id ? String(initial.transfer_to_account_id) : '',
+        amount: String(initial.amount),
+        description: initial.description,
+        occurred_on: initial.occurred_on,
+      });
+    } else {
+      setForm({ ...defaultForm, occurred_on: new Date().toISOString().slice(0, 10) });
+    }
+    setError('');
+    setShowAddAccount(false);
+    setShowAddCategory(false);
+  }, [open, initial]);
 
   const filteredCategories = categories.filter(
     (c) => form.kind === 'transfer' || c.kind === form.kind
@@ -239,26 +261,32 @@ export default function AddTransactionModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activeBook || !form.account_id || !form.amount) return;
+    const bookId = initial?.book_id ?? activeBook?.id;
+    if (!bookId || !form.account_id || !form.amount) return;
     const selectedAccount = accounts.find((a) => a.id === Number(form.account_id));
     if (!selectedAccount) return;
 
     setIsSubmitting(true);
     setError('');
+    const payload = {
+      book_id: bookId,
+      account_id: Number(form.account_id),
+      category_id: form.category_id ? Number(form.category_id) : null,
+      kind: form.kind,
+      amount: parseFloat(form.amount),
+      currency: selectedAccount.currency,
+      description: form.description || `${form.kind} transaction`,
+      occurred_on: form.occurred_on,
+      transfer_to_account_id:
+        form.kind === 'transfer' && form.transfer_to_account_id
+          ? Number(form.transfer_to_account_id) : null,
+    };
     try {
-      await api.post('/transactions/', {
-        book_id: activeBook.id,
-        account_id: Number(form.account_id),
-        category_id: form.category_id ? Number(form.category_id) : null,
-        kind: form.kind,
-        amount: parseFloat(form.amount),
-        currency: selectedAccount.currency,
-        description: form.description || `${form.kind} transaction`,
-        occurred_on: form.occurred_on,
-        transfer_to_account_id:
-          form.kind === 'transfer' && form.transfer_to_account_id
-            ? Number(form.transfer_to_account_id) : null,
-      });
+      if (initial) {
+        await api.put(`/transactions/${initial.id}`, payload);
+      } else {
+        await api.post('/transactions/', payload);
+      }
       setForm({ ...defaultForm, occurred_on: new Date().toISOString().slice(0, 10) });
       onOpenChange(false);
       onSuccess();
@@ -266,7 +294,7 @@ export default function AddTransactionModal({
       const message = err && typeof err === 'object' && 'response' in err
         ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
         : undefined;
-      setError(typeof message === 'string' ? message : 'Failed to create transaction');
+      setError(typeof message === 'string' ? message : `Failed to ${isEditing ? 'update' : 'create'} transaction`);
     } finally {
       setIsSubmitting(false);
     }
@@ -293,10 +321,14 @@ export default function AddTransactionModal({
           form.kind === 'income' ? 'bg-accent-green/8' : form.kind === 'transfer' ? 'bg-accent-yellow/10' : 'bg-primary/5'
         )}>
           <DialogHeader>
-            <DialogTitle className="text-lg font-semibold">Add Transaction</DialogTitle>
+            <DialogTitle className="text-lg font-semibold">
+              {isEditing ? 'Edit Transaction' : 'Add Transaction'}
+            </DialogTitle>
             <DialogDescription className="text-sm text-muted-foreground">
-              Record a new entry for{' '}
-              <span className="font-medium text-foreground">{activeBook?.name ?? 'your book'}</span>
+              {isEditing ? 'Update this entry.' : 'Record a new entry for '}
+              {!isEditing && (
+                <span className="font-medium text-foreground">{activeBook?.name ?? 'your book'}</span>
+              )}
             </DialogDescription>
           </DialogHeader>
 
@@ -488,7 +520,7 @@ export default function AddTransactionModal({
 
           <Button
             type="submit"
-            disabled={isSubmitting || accounts.length === 0}
+            disabled={isSubmitting || accounts.length === 0 || (!isEditing && !activeBook)}
             className={cn(
               'w-full h-11 rounded-xl font-semibold transition-all',
               form.kind === 'income'
@@ -499,7 +531,9 @@ export default function AddTransactionModal({
             )}
           >
             {isSubmitting ? (
-              <><Loader2 className="h-4 w-4 animate-spin mr-2" />Adding…</>
+              <><Loader2 className="h-4 w-4 animate-spin mr-2" />{isEditing ? 'Saving…' : 'Adding…'}</>
+            ) : isEditing ? (
+              <><Pencil className="h-4 w-4 mr-2" />Save changes</>
             ) : (
               <><Plus className="h-4 w-4 mr-2" />Add {kindConfig[form.kind].label}</>
             )}

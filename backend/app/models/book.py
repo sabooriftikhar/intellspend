@@ -12,7 +12,7 @@ class Book(Base):
     description = Column(String)
     
     user = relationship("User", back_populates="books")
-    accounts = relationship("Account", back_populates="book")
+    accounts = relationship("Account", secondary="account_books", back_populates="books")
     transactions = relationship("Transaction", back_populates="book")
     bills = relationship("Bill", back_populates="book")
     categories = relationship("Category", back_populates="book")

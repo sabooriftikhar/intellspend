@@ -31,7 +31,7 @@ export default function DashboardPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const displayName = user?.email?.split('@')[0] ?? 'there';
+  const displayName = user?.name || user?.email?.split('@')[0] || 'there';
   const loading = bookLoading || isLoading;
 
   // This month's transactions only
