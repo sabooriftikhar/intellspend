@@ -6,9 +6,17 @@ from app.db import base  # noqa: F401 — registers all ORM models
 
 app = FastAPI(title=settings.PROJECT_NAME)
 
+origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+
+if settings.FRONTEND_URL:
+    origins.append(settings.FRONTEND_URL)
+    
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
