@@ -1,0 +1,137 @@
+@import "tailwindcss";
+
+:root {
+  /* Page background — off-white warm gray */
+  --background: #f2f4f3;
+  --foreground: #0d1f1f;
+
+  /* Cards — pure white */
+  --card: #ffffff;
+  --card-foreground: #0d1f1f;
+
+  /* Brand primary — deep dark teal (matching the design's dark cards) */
+  --primary: #0a2929;
+  --primary-foreground: #ffffff;
+
+  /* Secondary surfaces */
+  --secondary: #eaf1f0;
+  --secondary-foreground: #0a2929;
+
+  /* Muted text */
+  --muted: #8a9e9e;
+  --muted-foreground: #6b8080;
+
+  /* Accent backgrounds */
+  --accent: #edf5f3;
+  --accent-foreground: #0a2929;
+
+  /* Destructive */
+  --destructive: #e53935;
+  --destructive-foreground: #ffffff;
+
+  /* Borders & inputs */
+  --border: #e0eaea;
+  --input: #e0eaea;
+  --ring: #0a2929;
+
+  /* Semantic accent colors */
+  --accent-green: #00c853;
+  --accent-green-light: #e8faf0;
+  --accent-yellow: #ffca28;
+  --accent-yellow-light: #fff9e6;
+  --accent-teal: #00897b;
+  --accent-teal-light: #e0f2f1;
+
+  /* Sidebar */
+  --sidebar: #ffffff;
+  --sidebar-border: #e0eaea;
+
+  /* Gauge / chart colors */
+  --chart-1: #0a2929;
+  --chart-2: #00c853;
+  --chart-3: #ffca28;
+  --chart-4: #4a9e9e;
+  --chart-5: #00897b;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-accent-green: var(--accent-green);
+  --color-accent-green-light: var(--accent-green-light);
+  --color-accent-yellow: var(--accent-yellow);
+  --color-accent-yellow-light: var(--accent-yellow-light);
+  --color-accent-teal: var(--accent-teal);
+  --color-accent-teal-light: var(--accent-teal-light);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  height: 5px;
+  width: 5px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #c8d8d8;
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #a0b8b8;
+}
+
+/* Smooth tab underline transition */
+.tab-active {
+  position: relative;
+}
+.tab-active::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--primary);
+  border-radius: 1px;
+}
+
+/* Gauge animation */
+@keyframes gauge-fill {
+  from { stroke-dashoffset: 400; }
+}
