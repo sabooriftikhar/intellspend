@@ -137,37 +137,8 @@ def pay_bill(
     db.commit()
     db.refresh(db_bill)
 
-    # Auto-create next month's bill for recurring ones
-    if db_bill.recurrence == BillRecurrence.monthly:
-        if db_bill.bill_month:
-            # advance one month
-            try:
-                y, m = map(int, db_bill.bill_month.split("-"))
-                if m == 12:
-                    y, m = y + 1, 1
-                else:
-                    m += 1
-                next_month = f"{y:04d}-{m:02d}"
-                next_due = date(y, m, min(db_bill.due_day_of_month, 28))
-            except (ValueError, TypeError):
-                next_month = None
-                next_due = None
-        else:
-            next_month = None
-            next_due = None
-
-        next_bill = Bill(
-            book_id=db_bill.book_id,
-            category_id=db_bill.category_id,
-            name=db_bill.name,
-            due_day_of_month=db_bill.due_day_of_month,
-            due_date=next_due,
-            bill_month=next_month,
-            estimated_amount=db_bill.estimated_amount,
-            recurrence=BillRecurrence.monthly,
-            status=BillStatus.pending,
-        )
-        db.add(next_bill)
-        db.commit()
+    # NOTE: No auto-creation of next month's bill.
+    # The user must add next month's bill themselves — by design,
+    # this keeps the bill list clean and avoids phantom future bills.
 
     return db_bill

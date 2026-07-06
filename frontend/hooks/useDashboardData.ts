@@ -4,45 +4,48 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import api from '@/lib/api';
 import { useBook } from '@/contexts/BookContext';
 import {
-  Account,
-  AccountBalance,
-  AccountWithBalance,
-  Bill,
-  Category,
-  Transaction,
+  Account, AccountBalance, AccountWithBalance,
+  Bill, Category, Transaction,
 } from '@/lib/types';
-import { getMonthRange } from '@/lib/format';
+
+export interface MonthStat {
+  month: string;   // "Jan", "Feb", …
+  income: number;
+  expense: number;
+}
+
+function getMonthRange(offsetMonths = 0) {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth() + offsetMonths;
+  const d = new Date(y, m, 1);
+  const first = new Date(d.getFullYear(), d.getMonth(), 1);
+  const last  = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+  const fmt = (dt: Date) => dt.toISOString().slice(0, 10);
+  return { start: fmt(first), end: fmt(last), label: first.toLocaleString('default', { month: 'short' }) };
+}
 
 export function useDashboardData() {
   const { activeBook } = useBook();
 
-  const [accounts, setAccounts] = useState<AccountWithBalance[]>([]);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [bills, setBills] = useState<Bill[]>([]);
-  const [monthlyIncome, setMonthlyIncome] = useState(0);
+  const [accounts,       setAccounts]       = useState<AccountWithBalance[]>([]);
+  const [transactions,   setTransactions]   = useState<Transaction[]>([]);
+  const [categories,     setCategories]     = useState<Category[]>([]);
+  const [bills,          setBills]          = useState<Bill[]>([]);
+  const [monthlyIncome,  setMonthlyIncome]  = useState(0);
   const [monthlyExpense, setMonthlyExpense] = useState(0);
-  const [primaryCurrency, setPrimaryCurrency] = useState('USD');
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  // Increment this to force a re-fetch from anywhere (refresh button, onSuccess, etc.)
-  const [refreshKey, setRefreshKey] = useState(0);
-
-  // Track the latest fetch so a stale one can't overwrite newer data
+  const [primaryCurrency,setPrimaryCurrency]= useState('USD');
+  const [trendData,      setTrendData]      = useState<MonthStat[]>([]);
+  const [isLoading,      setIsLoading]      = useState(true);
+  const [error,          setError]          = useState<string | null>(null);
+  const [refreshKey,     setRefreshKey]     = useState(0);
   const fetchIdRef = useRef(0);
 
   useEffect(() => {
-    // Reset when book changes or refresh is triggered
     if (!activeBook) {
-      setAccounts([]);
-      setTransactions([]);
-      setCategories([]);
-      setBills([]);
-      setMonthlyIncome(0);
-      setMonthlyExpense(0);
-      setIsLoading(false);
-      setError(null);
+      setAccounts([]); setTransactions([]); setCategories([]);
+      setBills([]); setMonthlyIncome(0); setMonthlyExpense(0);
+      setTrendData([]); setIsLoading(false); setError(null);
       return;
     }
 
@@ -52,51 +55,36 @@ export function useDashboardData() {
 
     const run = async () => {
       try {
-        const { start, end } = getMonthRange();
+        const thisMonth = getMonthRange(0);
 
-        // 5 parallel requests
+        // Core parallel fetches
         const [accountsRes, txRes, categoriesRes, monthTxRes, billsRes] = await Promise.all([
-          api.get<Account[]>('/accounts/', { params: { book_id: activeBook.id } }),
+          api.get<Account[]>('/accounts/',      { params: { book_id: activeBook.id } }),
+          api.get<Transaction[]>('/transactions/', { params: { book_id: activeBook.id, limit: 500 } }),
+          api.get<Category[]>('/categories/',   { params: { book_id: activeBook.id } }),
           api.get<Transaction[]>('/transactions/', {
-            params: { book_id: activeBook.id, limit: 500 },
-          }),
-          api.get<Category[]>('/categories/', { params: { book_id: activeBook.id } }),
-          api.get<Transaction[]>('/transactions/', {
-            params: {
-              book_id: activeBook.id,
-              start_date: start,
-              end_date: end,
-              limit: 500,
-            },
+            params: { book_id: activeBook.id, start_date: thisMonth.start, end_date: thisMonth.end, limit: 500 },
           }),
           api.get<Bill[]>('/bills/', { params: { book_id: activeBook.id } }),
         ]);
 
-        // Bail out if a newer fetch has started
         if (fetchId !== fetchIdRef.current) return;
 
         const rawAccounts = accountsRes.data;
-
-        // Fetch all balances in parallel, fall back to opening_balance on error
         const withBalances: AccountWithBalance[] = await Promise.all(
-          rawAccounts.map(async (account) => {
+          rawAccounts.map(async (acc) => {
             try {
-              const balRes = await api.get<AccountBalance>(
-                `/accounts/${account.id}/balance`
-              );
-              return { ...account, balance: balRes.data.balance };
+              const r = await api.get<AccountBalance>(`/accounts/${acc.id}/balance`);
+              return { ...acc, balance: r.data.balance };
             } catch {
-              // Don't let one bad balance kill the whole dashboard
-              return { ...account, balance: account.opening_balance };
+              return { ...acc, balance: acc.opening_balance };
             }
           })
         );
 
         if (fetchId !== fetchIdRef.current) return;
 
-        if (rawAccounts.length > 0) {
-          setPrimaryCurrency(rawAccounts[0].currency);
-        }
+        if (rawAccounts.length > 0) setPrimaryCurrency(rawAccounts[0].currency);
 
         setAccounts(withBalances);
         setTransactions(txRes.data);
@@ -104,51 +92,46 @@ export function useDashboardData() {
         setBills(billsRes.data);
 
         const monthTxs = monthTxRes.data;
-        setMonthlyIncome(
-          monthTxs
-            .filter((t) => t.kind === 'income')
-            .reduce((sum, t) => sum + t.amount, 0)
-        );
-        setMonthlyExpense(
-          monthTxs
-            .filter((t) => t.kind === 'expense')
-            .reduce((sum, t) => sum + t.amount, 0)
-        );
+        setMonthlyIncome(monthTxs.filter(t => t.kind === 'income').reduce((s, t) => s + t.amount, 0));
+        setMonthlyExpense(monthTxs.filter(t => t.kind === 'expense').reduce((s, t) => s + t.amount, 0));
+
+        // Fetch 6-month trend (current + 5 previous months)
+        const trendRequests = Array.from({ length: 6 }, (_, i) => {
+          const range = getMonthRange(i - 5);
+          return api.get<Transaction[]>('/transactions/', {
+            params: { book_id: activeBook.id, start_date: range.start, end_date: range.end, limit: 500 },
+          }).then(r => ({
+            month: range.label,
+            income:  r.data.filter(t => t.kind === 'income').reduce((s, t) => s + t.amount, 0),
+            expense: r.data.filter(t => t.kind === 'expense').reduce((s, t) => s + t.amount, 0),
+          }));
+        });
+
+        const trend = await Promise.all(trendRequests);
+        if (fetchId !== fetchIdRef.current) return;
+        setTrendData(trend);
+
       } catch (err) {
         if (fetchId !== fetchIdRef.current) return;
         console.error('Dashboard fetch failed:', err);
-        setError('Failed to load dashboard data. Check your connection and try again.');
+        setError('Failed to load dashboard data.');
       } finally {
-        if (fetchId === fetchIdRef.current) {
-          setIsLoading(false);
-        }
+        if (fetchId === fetchIdRef.current) setIsLoading(false);
       }
     };
 
     run();
-  // refreshKey in deps guarantees a fresh fetch every time refresh() is called,
-  // even if activeBook reference didn't change.
   }, [activeBook, refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const refresh = useCallback(() => {
-    setRefreshKey((k) => k + 1);
-  }, []);
+  const refresh = useCallback(() => setRefreshKey(k => k + 1), []);
 
-  const bankAccounts = accounts.filter((a) => a.type === 'bank' || a.type === 'cash');
-  const creditCards = accounts.filter((a) => a.type === 'credit_card');
+  const bankAccounts = accounts.filter(a => a.type === 'bank' || a.type === 'cash');
+  const creditCards  = accounts.filter(a => a.type === 'credit_card');
 
   return {
-    accounts,
-    bankAccounts,
-    creditCards,
-    transactions,
-    categories,
-    bills,
-    monthlyIncome,
-    monthlyExpense,
-    primaryCurrency,
-    isLoading,
-    error,
-    refresh,
+    accounts, bankAccounts, creditCards,
+    transactions, categories, bills,
+    monthlyIncome, monthlyExpense, primaryCurrency,
+    trendData, isLoading, error, refresh,
   };
 }

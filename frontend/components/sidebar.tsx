@@ -12,17 +12,19 @@ import {
   LogOut,
   TrendingUp,
   Tag,
+  ArrowLeftRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 
 const navItems = [
-  { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { href: '/books', icon: BookOpen, label: 'Books' },
-  { href: '/accounts', icon: Wallet, label: 'Accounts' },
-  { href: '/categories', icon: Tag, label: 'Categories' },
-  { href: '/bills', icon: Receipt, label: 'Bills' },
-  { href: '/chat', icon: MessageSquare, label: 'Chat' },
+  { href: '/dashboard',    icon: LayoutDashboard, label: 'Dashboard' },
+  { href: '/transactions', icon: ArrowLeftRight,  label: 'Transactions' },
+  { href: '/books',        icon: BookOpen,         label: 'Books' },
+  { href: '/accounts',     icon: Wallet,           label: 'Accounts' },
+  { href: '/categories',   icon: Tag,              label: 'Categories' },
+  { href: '/bills',        icon: Receipt,          label: 'Bills' },
+  { href: '/chat',         icon: MessageSquare,    label: 'Chat' },
 ];
 
 export default function Sidebar() {
