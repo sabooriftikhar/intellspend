@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.models import account as account_model
 from app.models.book import Book
 from app.schemas import account as account_schema
-
+from app.models.transaction import Transaction
 
 def _load_books(db: Session, book_ids: list[int], user_id: int) -> list[Book]:
     unique_ids = list(dict.fromkeys(book_ids))
@@ -93,9 +93,23 @@ def update_account(db: Session, account_id: int, account: account_schema.Account
     return get_account(db, account_id, user_id)
 
 
+
+
 def delete_account(db: Session, account_id: int, user_id: int):
     db_account = get_account(db, account_id, user_id)
-    if db_account:
-        db.delete(db_account)
-        db.commit()
+
+    if not db_account:
+        return None
+
+    has_transactions = (
+        db.query(Transaction)
+        .filter(Transaction.account_id == account_id)
+        .first()
+    )
+
+    if has_transactions:
+        raise ValueError("Cannot delete an account that has transactions.")
+
+    db.delete(db_account)
+    db.commit()
     return db_account
