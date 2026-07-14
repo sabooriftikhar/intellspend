@@ -48,10 +48,16 @@ def read_account(
 @router.get("/{account_id}/balance", response_model=schemas.balance.AccountBalance)
 def get_account_balance(
     account_id: int,
+    book_id: int | None = None,
     db: Session = Depends(get_db),
     current_user: schemas.user.User = Depends(users.get_current_user),
 ):
-    balance_data = crud.balance.get_account_balance(db, account_id=account_id, user_id=current_user.id)
+    balance_data = crud.balance.get_account_balance(
+        db,
+        account_id=account_id,
+        user_id=current_user.id,
+        book_id=book_id,
+    )
     if balance_data is None:
         raise HTTPException(status_code=404, detail="Account not found")
     return balance_data
