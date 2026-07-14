@@ -42,13 +42,6 @@ export function useDashboardData() {
   const fetchIdRef = useRef(0);
 
   useEffect(() => {
-    if (!activeBook) {
-      setAccounts([]); setTransactions([]); setCategories([]);
-      setBills([]); setMonthlyIncome(0); setMonthlyExpense(0);
-      setTrendData([]); setIsLoading(false); setError(null);
-      return;
-    }
-
     const fetchId = ++fetchIdRef.current;
     setIsLoading(true);
     setError(null);
@@ -56,16 +49,17 @@ export function useDashboardData() {
     const run = async () => {
       try {
         const thisMonth = getMonthRange(0);
+        const params = activeBook ? { book_id: activeBook.id } : {};
 
         // Core parallel fetches
         const [accountsRes, txRes, categoriesRes, monthTxRes, billsRes] = await Promise.all([
-          api.get<Account[]>('/accounts/',      { params: { book_id: activeBook.id } }),
-          api.get<Transaction[]>('/transactions/', { params: { book_id: activeBook.id, limit: 500 } }),
-          api.get<Category[]>('/categories/',   { params: { book_id: activeBook.id } }),
+          api.get<Account[]>('/accounts/',      { params }),
+          api.get<Transaction[]>('/transactions/', { params: { ...params, limit: 500 } }),
+          api.get<Category[]>('/categories/',   { params }),
           api.get<Transaction[]>('/transactions/', {
-            params: { book_id: activeBook.id, start_date: thisMonth.start, end_date: thisMonth.end, limit: 500 },
+            params: { ...params, start_date: thisMonth.start, end_date: thisMonth.end, limit: 500 },
           }),
-          api.get<Bill[]>('/bills/', { params: { book_id: activeBook.id } }),
+          api.get<Bill[]>('/bills/', { params }),
         ]);
 
         if (fetchId !== fetchIdRef.current) return;
@@ -74,7 +68,9 @@ export function useDashboardData() {
         const withBalances: AccountWithBalance[] = await Promise.all(
           rawAccounts.map(async (acc) => {
             try {
-              const r = await api.get<AccountBalance>(`/accounts/${acc.id}/balance`);
+              const r = await api.get<AccountBalance>(`/accounts/${acc.id}/balance`, {
+                params: activeBook ? { book_id: activeBook.id } : undefined,
+              });
               return { ...acc, balance: r.data.balance };
             } catch {
               return { ...acc, balance: acc.opening_balance };
@@ -99,7 +95,7 @@ export function useDashboardData() {
         const trendRequests = Array.from({ length: 6 }, (_, i) => {
           const range = getMonthRange(i - 5);
           return api.get<Transaction[]>('/transactions/', {
-            params: { book_id: activeBook.id, start_date: range.start, end_date: range.end, limit: 500 },
+            params: { ...params, start_date: range.start, end_date: range.end, limit: 500 },
           }).then(r => ({
             month: range.label,
             income:  r.data.filter(t => t.kind === 'income').reduce((s, t) => s + t.amount, 0),
@@ -114,7 +110,7 @@ export function useDashboardData() {
       } catch (err) {
         if (fetchId !== fetchIdRef.current) return;
         console.error('Dashboard fetch failed:', err);
-        setError('Failed to load dashboard data.');
+        setError('Unable to refresh dashboard data right now. Showing the last loaded snapshot.');
       } finally {
         if (fetchId === fetchIdRef.current) setIsLoading(false);
       }

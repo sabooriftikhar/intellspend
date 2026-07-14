@@ -15,12 +15,13 @@ interface AccountBalance { balance: number; currency: string; }
 interface AccountWithBalance extends Account { balance: number; }
 
 export default function TransactionsPage() {
-  const { activeBook, books } = useBook();
+  const { activeBook } = useBook();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [accounts, setAccounts]         = useState<AccountWithBalance[]>([]);
   const [categories, setCategories]     = useState<Category[]>([]);
   const [isLoading, setIsLoading]       = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [error, setError]               = useState<string | null>(null);
   const [modalOpen, setModalOpen]       = useState(false);
   const [editTarget, setEditTarget]     = useState<Transaction | null>(null);
 
@@ -35,6 +36,7 @@ export default function TransactionsPage() {
   };
 
   const fetchAll = useCallback(async () => {
+    setError(null);
     try {
       const params = activeBook ? { book_id: activeBook.id } : {};
       const [txRes, accRes, catRes] = await Promise.all([
@@ -45,7 +47,9 @@ export default function TransactionsPage() {
       const withBal: AccountWithBalance[] = await Promise.all(
         accRes.data.map(async a => {
           try {
-            const r = await api.get<AccountBalance>(`/accounts/${a.id}/balance`);
+            const r = await api.get<AccountBalance>(`/accounts/${a.id}/balance`, {
+              params: activeBook ? { book_id: activeBook.id } : undefined,
+            });
             return { ...a, balance: r.data.balance };
           } catch { return { ...a, balance: a.opening_balance }; }
         })
@@ -53,7 +57,9 @@ export default function TransactionsPage() {
       setTransactions(txRes.data);
       setAccounts(withBal);
       setCategories(catRes.data);
-    } catch { /* silent */ }
+    } catch {
+      setError('Unable to refresh transactions right now. Showing the last loaded snapshot.');
+    }
   }, [activeBook]);
 
   const load = useCallback(async () => {
@@ -68,7 +74,11 @@ export default function TransactionsPage() {
     setIsRefreshing(false);
   }, [fetchAll]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    queueMicrotask(() => {
+      void load();
+    });
+  }, [load]);
 
   // Summary stats
   const income  = transactions.filter(t => t.kind === 'income').reduce((s, t) => s + t.amount, 0);
@@ -76,7 +86,7 @@ export default function TransactionsPage() {
   const primaryCurrency = accounts[0]?.currency ?? 'USD';
 
   return (
-    <div className="space-y-5 max-w-[1400px] mx-auto">
+    <div className="space-y-5 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-1">
         <div>
@@ -115,11 +125,29 @@ export default function TransactionsPage() {
         </div>
       )}
 
-      {isLoading ? (
+      {isLoading && transactions.length === 0 ? (
         <div className="flex justify-center py-16">
           <Loader2 className="h-7 w-7 animate-spin text-primary" />
         </div>
+      ) : error && transactions.length === 0 ? (
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-8 text-center space-y-3">
+          <p className="text-sm font-medium text-amber-900">{error}</p>
+          <button onClick={refresh} className="text-xs text-primary font-medium hover:underline">
+            Try again
+          </button>
+        </div>
       ) : (
+        <>
+          {error && (
+            <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm text-amber-900">
+              <div className="flex items-center justify-between gap-3">
+                <p>{error}</p>
+                <button onClick={refresh} className="text-xs font-medium hover:underline shrink-0">
+                  Retry
+                </button>
+              </div>
+            </div>
+          )}
         <TransactionTable
           transactions={transactions}
           accounts={accounts}
@@ -127,6 +155,7 @@ export default function TransactionsPage() {
           onRefresh={refresh}
           onEdit={openEdit}
         />
+        </>
       )}
 
       <AddTransactionModal

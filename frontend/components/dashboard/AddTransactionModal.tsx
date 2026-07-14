@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/dialog';
 import { Account, Category, TransactionKind, AccountType, CategoryKind, Transaction } from '@/lib/types';
 import { useBook } from '@/contexts/BookContext';
-import { Plus, Loader2, TrendingDown, TrendingUp, ArrowLeftRight, ChevronDown, X, Pencil } from 'lucide-react';
+import { Plus, Loader2, TrendingDown, TrendingUp, ArrowLeftRight, X, Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // ── Inline quick-add forms ─────────────────────────────────────
@@ -188,6 +188,7 @@ interface AddTransactionModalProps {
 
 const defaultForm = {
   kind: 'expense' as TransactionKind,
+  book_id: '',
   account_id: '',
   category_id: '',
   transfer_to_account_id: '',
@@ -220,28 +221,43 @@ export default function AddTransactionModal({
   const [showAddCategory, setShowAddCategory] = useState(false);
 
   // Sync when parent refreshes
-  useEffect(() => { setAccounts(initialAccounts); }, [initialAccounts]);
-  useEffect(() => { setCategories(initialCategories); }, [initialCategories]);
+  useEffect(() => {
+    queueMicrotask(() => {
+      setAccounts(initialAccounts);
+    });
+  }, [initialAccounts]);
+  useEffect(() => {
+    queueMicrotask(() => {
+      setCategories(initialCategories);
+    });
+  }, [initialCategories]);
 
   useEffect(() => {
     if (!open) return;
-    if (initial) {
-      setForm({
-        kind: initial.kind,
-        account_id: String(initial.account_id),
-        category_id: initial.category_id ? String(initial.category_id) : '',
-        transfer_to_account_id: initial.transfer_to_account_id ? String(initial.transfer_to_account_id) : '',
-        amount: String(initial.amount),
-        description: initial.description,
-        occurred_on: initial.occurred_on,
-      });
-    } else {
-      setForm({ ...defaultForm, occurred_on: new Date().toISOString().slice(0, 10) });
-    }
-    setError('');
-    setShowAddAccount(false);
-    setShowAddCategory(false);
-  }, [open, initial]);
+    queueMicrotask(() => {
+      if (initial) {
+        setForm({
+          kind: initial.kind,
+          book_id: String(initial.book_id),
+          account_id: String(initial.account_id),
+          category_id: initial.category_id ? String(initial.category_id) : '',
+          transfer_to_account_id: initial.transfer_to_account_id ? String(initial.transfer_to_account_id) : '',
+          amount: String(initial.amount),
+          description: initial.description,
+          occurred_on: initial.occurred_on,
+        });
+      } else {
+        setForm({
+          ...defaultForm,
+          book_id: activeBook?.id ? String(activeBook.id) : '',
+          occurred_on: new Date().toISOString().slice(0, 10),
+        });
+      }
+      setError('');
+      setShowAddAccount(false);
+      setShowAddCategory(false);
+    });
+  }, [open, initial, activeBook?.id]);
 
   const filteredCategories = categories.filter(
     (c) => form.kind === 'transfer' || c.kind === form.kind
@@ -261,7 +277,7 @@ export default function AddTransactionModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const bookId = initial?.book_id ?? activeBook?.id;
+    const bookId = initial?.book_id ?? (form.book_id ? Number(form.book_id) : activeBook?.id);
     if (!bookId || !form.account_id || !form.amount) return;
     const selectedAccount = accounts.find((a) => a.id === Number(form.account_id));
     if (!selectedAccount) return;
@@ -287,7 +303,11 @@ export default function AddTransactionModal({
       } else {
         await api.post('/transactions/', payload);
       }
-      setForm({ ...defaultForm, occurred_on: new Date().toISOString().slice(0, 10) });
+      setForm({
+        ...defaultForm,
+        book_id: activeBook?.id ? String(activeBook.id) : '',
+        occurred_on: new Date().toISOString().slice(0, 10),
+      });
       onOpenChange(false);
       onSuccess();
     } catch (err: unknown) {
@@ -302,7 +322,11 @@ export default function AddTransactionModal({
 
   const handleOpenChange = (value: boolean) => {
     if (!value) {
-      setForm({ ...defaultForm, occurred_on: new Date().toISOString().slice(0, 10) });
+      setForm({
+        ...defaultForm,
+        book_id: activeBook?.id ? String(activeBook.id) : '',
+        occurred_on: new Date().toISOString().slice(0, 10),
+      });
       setError('');
       setShowAddAccount(false);
       setShowAddCategory(false);
@@ -310,11 +334,13 @@ export default function AddTransactionModal({
     onOpenChange(value);
   };
 
+  const selectedBook = books.find((book) => book.id === Number(form.book_id)) ?? activeBook ?? null;
+
   const selectedAccount = accounts.find((a) => a.id === Number(form.account_id));
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-[460px] p-0 gap-0 overflow-hidden max-h-[92vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-115 p-0 gap-0 overflow-hidden max-h-[92vh] overflow-y-auto">
         {/* Header */}
         <div className={cn(
           'px-6 pt-6 pb-5 transition-colors duration-200',
@@ -327,7 +353,7 @@ export default function AddTransactionModal({
             <DialogDescription className="text-sm text-muted-foreground">
               {isEditing ? 'Update this entry.' : 'Record a new entry for '}
               {!isEditing && (
-                <span className="font-medium text-foreground">{activeBook?.name ?? 'your book'}</span>
+                <span className="font-medium text-foreground">{selectedBook?.name ?? 'a book'}</span>
               )}
             </DialogDescription>
           </DialogHeader>
@@ -381,6 +407,24 @@ export default function AddTransactionModal({
           </div>
 
           <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5 col-span-2">
+              <Label htmlFor="t-book" className="text-xs font-medium text-muted-foreground">
+                Book
+              </Label>
+              <Select
+                id="t-book"
+                required
+                value={form.book_id}
+                onChange={(e) => setForm((f) => ({ ...f, book_id: e.target.value }))}
+                className="rounded-xl border-border h-10 text-sm"
+              >
+                <option value="">Select book</option>
+                {books.map((book) => (
+                  <option key={book.id} value={book.id}>{book.name}</option>
+                ))}
+              </Select>
+            </div>
+
             {/* Account */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
@@ -430,7 +474,7 @@ export default function AddTransactionModal({
           {showAddAccount && (
             <QuickAddAccount
               books={books}
-              defaultBookId={activeBook?.id}
+              defaultBookId={selectedBook?.id ?? undefined}
               onCreated={handleAccountCreated}
               onCancel={() => setShowAddAccount(false)}
             />
@@ -492,7 +536,7 @@ export default function AddTransactionModal({
             <QuickAddCategory
               kind={form.kind === 'income' ? 'income' : 'expense'}
               books={books}
-              defaultBookId={activeBook?.id}
+              defaultBookId={selectedBook?.id ?? undefined}
               onCreated={handleCategoryCreated}
               onCancel={() => setShowAddCategory(false)}
             />
@@ -520,7 +564,7 @@ export default function AddTransactionModal({
 
           <Button
             type="submit"
-            disabled={isSubmitting || accounts.length === 0 || (!isEditing && !activeBook)}
+            disabled={isSubmitting || accounts.length === 0 || !form.book_id}
             className={cn(
               'w-full h-11 rounded-xl font-semibold transition-all',
               form.kind === 'income'

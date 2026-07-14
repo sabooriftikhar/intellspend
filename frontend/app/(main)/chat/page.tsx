@@ -31,7 +31,7 @@ function renderContent(text: string) {
       <ul key={key} className="mt-1.5 space-y-0.5 list-none">
         {listItems.map((item, i) => (
           <li key={i} className="flex items-start gap-1.5">
-            <span className="mt-[6px] h-1.5 w-1.5 rounded-full bg-current shrink-0 opacity-50" />
+            <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-current shrink-0 opacity-50" />
             <span dangerouslySetInnerHTML={{ __html: boldify(item) }} />
           </li>
         ))}
@@ -48,6 +48,18 @@ function renderContent(text: string) {
       flushList(`l${i}`);
       if (!t) {
         if (elements.length) elements.push(<div key={`s${i}`} className="h-1.5" />);
+      } else if (/^#{1,3}\s+/.test(t)) {
+        const heading = t.replace(/^#{1,3}\s+/, '');
+        const headingClass = t.startsWith('###')
+          ? 'text-[11px] font-semibold uppercase tracking-widest opacity-40 mt-3 mb-0.5'
+          : t.startsWith('##')
+            ? 'text-xs font-semibold uppercase tracking-wide opacity-65 mt-2.5 mb-0.5'
+            : 'text-sm font-semibold mt-2 mb-0.5';
+        elements.push(
+          <p key={i} className={headingClass}>
+            {heading}
+          </p>
+        );
       } else if (t.startsWith('═══')) {
         elements.push(
           <p key={i} className="text-[11px] font-semibold uppercase tracking-widest opacity-40 mt-3 mb-0.5">
@@ -240,9 +252,9 @@ export default function ChatPage() {
         buffer = lines.pop() ?? '';  // keep incomplete line
 
         for (const line of lines) {
-          const t = line.trim();
-          if (!t.startsWith('data:')) continue;
-          const raw = t.slice(5).trim();
+          if (!line.startsWith('data:')) continue;
+          let raw = line.slice(5);
+          if (raw.startsWith(' ')) raw = raw.slice(1);
           if (raw === '[DONE]') break;
           if (raw.startsWith('[ERROR]')) {
             throw new Error(raw.slice(7).trim());
@@ -443,7 +455,7 @@ export default function ChatPage() {
             onKeyDown={handleKeyDown}
             placeholder={isStreaming ? 'Waiting for response…' : 'Ask about spending, balances, bills… (Enter to send)'}
             disabled={isStreaming}
-            className="flex-1 resize-none bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none disabled:opacity-40 min-h-[24px] leading-6"
+            className="flex-1 resize-none bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none disabled:opacity-40 min-h-6 leading-6"
             style={{ height: '24px' }}
           />
           <button

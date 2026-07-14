@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
+import { setSessionExpiredHandler } from '@/lib/session';
 
 interface User {
   id: number;
@@ -18,6 +19,7 @@ interface AuthContextType {
   register: (data: { email: string; password: string }) => Promise<void>;
   logout: () => void;
   isLoading: boolean;
+  sessionMessage: string | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -25,9 +27,22 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [sessionMessage, setSessionMessage] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
+    setSessionExpiredHandler((message) => {
+      setUser(null);
+      setIsLoading(false);
+      setSessionMessage(message);
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+      }
+      router.replace('/login');
+      window.setTimeout(() => setSessionMessage(null), 5000);
+    });
+
     const loadUserFromToken = async () => {
       const token = localStorage.getItem('access_token');
       if (token) {
@@ -36,12 +51,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(response.data);
         } catch (error) {
           console.error('Failed to fetch user', error);
-          localStorage.removeItem('access_token');
         }
       }
       setIsLoading(false);
     };
     loadUserFromToken();
+
+    return () => setSessionExpiredHandler(null);
   }, []);
 
   const login = async (data: { email: string; password: string }) => {
@@ -51,8 +67,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       password: data.password,
     });
     localStorage.setItem('access_token', response.data.access_token);
+    localStorage.setItem('refresh_token', response.data.refresh_token);
     const userResponse = await api.get('/users/me');
     setUser(userResponse.data);
+    setSessionMessage(null);
     router.push('/dashboard');
   };
 
@@ -69,12 +87,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     setUser(null);
     localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    setSessionMessage(null);
     router.push('/login');
   };
 
   return (
-    <AuthContext.Provider value={{ user, setUser, login, register, logout, isLoading }}>
+    <AuthContext.Provider value={{ user, setUser, login, register, logout, isLoading, sessionMessage }}>
       {children}
+      {sessionMessage && (
+        <div className="fixed right-4 top-4 z-50 max-w-sm rounded-2xl border border-border bg-card px-4 py-3 shadow-xl">
+          <p className="text-sm font-medium text-foreground">{sessionMessage}</p>
+        </div>
+      )}
     </AuthContext.Provider>
   );
 }

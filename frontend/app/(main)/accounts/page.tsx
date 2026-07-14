@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import {
-  Plus, Building2, Banknote, Wallet, Pencil, Trash2, Loader2,
+  Plus, Building2, Banknote, Pencil, Trash2, Loader2,
   CreditCard, X, Check, RefreshCw,
 } from 'lucide-react';
 import api from '@/lib/api';
@@ -84,24 +84,26 @@ export function AccountFormModal({
 
   useEffect(() => {
     if (open) {
-      const defaultIds = initial?.book_ids?.length
-        ? initial.book_ids.map(String)
-        : defaultBookId
-          ? [String(defaultBookId)]
-          : books[0]
-            ? [String(books[0].id)]
-            : [];
-      setForm({
-        name: initial?.name ?? '',
-        type: initial?.type ?? 'bank',
-        currency: initial?.currency ?? 'USD',
-        opening_balance: String(initial?.opening_balance ?? '0'),
-        credit_limit: initial?.credit_limit != null ? String(initial.credit_limit) : '',
-        statement_day: initial?.statement_day != null ? String(initial.statement_day) : '',
-        due_day: initial?.due_day != null ? String(initial.due_day) : '',
-        book_ids: defaultIds,
+      queueMicrotask(() => {
+        const defaultIds = initial?.book_ids?.length
+          ? initial.book_ids.map(String)
+          : defaultBookId
+            ? [String(defaultBookId)]
+            : books[0]
+              ? [String(books[0].id)]
+              : [];
+        setForm({
+          name: initial?.name ?? '',
+          type: initial?.type ?? 'bank',
+          currency: initial?.currency ?? 'USD',
+          opening_balance: String(initial?.opening_balance ?? '0'),
+          credit_limit: initial?.credit_limit != null ? String(initial.credit_limit) : '',
+          statement_day: initial?.statement_day != null ? String(initial.statement_day) : '',
+          due_day: initial?.due_day != null ? String(initial.due_day) : '',
+          book_ids: defaultIds,
+        });
+        setError('');
       });
-      setError('');
     }
   }, [open, initial, books, defaultBookId]);
 
@@ -292,12 +294,14 @@ export default function AccountsPage() {
   const [accounts, setAccounts] = useState<AccountWithBalance[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Account | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   const [deleting, setDeleting] = useState<number | null>(null);
 
   const fetchAccounts = useCallback(async () => {
+    setError(null);
     try {
       const res = await api.get<Account[]>('/accounts/', {
         params: activeBook ? { book_id: activeBook.id } : {},
@@ -306,7 +310,9 @@ export default function AccountsPage() {
       const withBalances = await Promise.all(
         raw.map(async (acc) => {
           try {
-            const bal = await api.get<AccountBalance>(`/accounts/${acc.id}/balance`);
+            const bal = await api.get<AccountBalance>(`/accounts/${acc.id}/balance`, {
+              params: activeBook ? { book_id: activeBook.id } : undefined,
+            });
             return { ...acc, balance: bal.data.balance };
           } catch {
             return { ...acc, balance: acc.opening_balance };
@@ -315,7 +321,7 @@ export default function AccountsPage() {
       );
       setAccounts(withBalances);
     } catch {
-      setAccounts([]);
+      setError('Unable to refresh accounts right now. Showing the last loaded snapshot.');
     }
   }, [activeBook]);
 
@@ -331,7 +337,11 @@ export default function AccountsPage() {
     setIsRefreshing(false);
   }, [fetchAccounts]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    queueMicrotask(() => {
+      void load();
+    });
+  }, [load]);
 
   const handleEdit = (acc: Account) => { setEditTarget(acc); setModalOpen(true); };
   const handleCreate = () => { setEditTarget(null); setModalOpen(true); };
@@ -485,7 +495,14 @@ export default function AccountsPage() {
         <div className="flex justify-center py-16">
           <Loader2 className="h-7 w-7 animate-spin text-primary" />
         </div>
-      ) : accounts.length === 0 ? (
+      ) : error && accounts.length === 0 ? (
+            <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-8 text-center space-y-3">
+              <p className="text-sm font-medium text-amber-900">{error}</p>
+              <button onClick={refresh} className="text-xs text-primary font-medium hover:underline">
+                Try again
+              </button>
+            </div>
+          ) : accounts.length === 0 ? (
         <div className="rounded-2xl border-2 border-dashed border-border bg-card p-16 text-center">
           <Building2 className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
           <p className="font-medium text-foreground">No accounts yet</p>
@@ -499,6 +516,17 @@ export default function AccountsPage() {
         </div>
       ) : (
         <div className="space-y-6">
+          {error && (
+            <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm text-amber-900">
+              <div className="flex items-center justify-between gap-3">
+                <p>{error}</p>
+                <button onClick={refresh} className="text-xs font-medium hover:underline shrink-0">
+                  Retry
+                </button>
+              </div>
+            </div>
+          )}
+
           {bankAccounts.length > 0 && (
             <section>
               <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">
@@ -507,7 +535,7 @@ export default function AccountsPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {bankAccounts.map((acc) => <AccountCard key={acc.id} acc={acc} />)}
                 <button onClick={handleCreate}
-                  className="rounded-2xl border-2 border-dashed border-border bg-card p-5 flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-primary hover:text-primary hover:bg-primary/5 transition-all min-h-[160px]">
+                  className="rounded-2xl border-2 border-dashed border-border bg-card p-5 flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-primary hover:text-primary hover:bg-primary/5 transition-all min-h-40">
                   <Plus className="h-5 w-5" />
                   <span className="text-sm font-medium">Add account</span>
                 </button>
@@ -528,7 +556,7 @@ export default function AccountsPage() {
 
           {accounts.length === 0 && (
             <button onClick={handleCreate}
-              className="rounded-2xl border-2 border-dashed border-border bg-card p-5 flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-primary hover:text-primary hover:bg-primary/5 transition-all min-h-[120px] w-full">
+              className="rounded-2xl border-2 border-dashed border-border bg-card p-5 flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-primary hover:text-primary hover:bg-primary/5 transition-all min-h-30 w-full">
               <Plus className="h-5 w-5" />
               <span className="text-sm font-medium">Add account</span>
             </button>

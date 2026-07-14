@@ -21,9 +21,9 @@ import { cn } from '@/lib/utils';
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  const { activeBook, isLoading: bookLoading } = useBook();
+  const { activeBook, books, isLoading: bookLoading } = useBook();
   const {
-    bankAccounts, creditCards, transactions, categories,
+    accounts, bankAccounts, creditCards, transactions, categories,
     bills, monthlyIncome, monthlyExpense, primaryCurrency,
     trendData, isLoading, error, refresh,
   } = useDashboardData();
@@ -33,6 +33,10 @@ export default function DashboardPage() {
 
   const displayName = user?.name || user?.email?.split('@')[0] || 'there';
   const loading = bookLoading || isLoading;
+  const hasData = accounts.length > 0 || transactions.length > 0 || categories.length > 0 || bills.length > 0;
+  const showInitialLoading = loading && !hasData;
+  const isAllBooksView = !activeBook && books.length > 0;
+  const scopeLabel = activeBook?.name ?? (isAllBooksView ? 'All Books' : 'No books yet');
 
   // This month's transactions only
   const today = new Date();
@@ -40,7 +44,7 @@ export default function DashboardPage() {
   const monthTx = transactions.filter(t => new Date(t.occurred_on + 'T00:00:00') >= monthStart);
 
   const netFlow = monthlyIncome - monthlyExpense;
-  const totalAssets = bankAccounts.reduce((s, a) => s + Math.max(a.balance, 0), 0);
+  const totalBalance = accounts.reduce((s, a) => s + a.balance, 0);
   const pendingBillsCount = bills.filter(b => b.status === 'pending').length;
 
   const handleRefresh = async () => {
@@ -50,7 +54,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="space-y-5 max-w-[1400px] mx-auto">
+    <div className="space-y-5 max-w-350 mx-auto">
 
       {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-1">
@@ -59,13 +63,13 @@ export default function DashboardPage() {
             {getGreeting()}, {displayName}.
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {activeBook
-              ? `${activeBook.name} · ${today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}`
-              : 'Select a book to start'}
+            {activeBook || isAllBooksView
+              ? `${scopeLabel} · ${today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}`
+              : 'Create a book to start tracking'}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 shrink-0">
-          <BookSwitcher className="min-w-[130px]" />
+          <BookSwitcher className="min-w-32.5" />
           <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isRefreshing}
             className="rounded-xl h-8 gap-1.5 text-xs">
             <RefreshCw className={cn('h-3 w-3', isRefreshing && 'animate-spin')} />
@@ -80,34 +84,38 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Loading ── */}
-      {loading ? (
+      {showInitialLoading ? (
         <div className="flex flex-col items-center justify-center py-32 gap-3">
           <Loader2 className="h-7 w-7 animate-spin text-primary" />
           <p className="text-xs text-muted-foreground">Loading your finances…</p>
         </div>
-      ) : error ? (
-        <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-6 text-center space-y-2">
-          <p className="text-sm text-destructive">{error}</p>
-          <button onClick={handleRefresh} className="text-xs text-primary font-medium hover:underline">
-            Try again
-          </button>
-        </div>
-      ) : !activeBook ? (
+      ) : !hasData && !activeBook && !isAllBooksView ? (
         <div className="rounded-2xl border-2 border-dashed border-border bg-card p-14 text-center">
           <p className="text-sm font-medium text-foreground mb-1">No book selected</p>
           <p className="text-xs text-muted-foreground">Create a book first to start tracking.</p>
         </div>
       ) : (
         <>
+          {error && (
+            <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm text-amber-900">
+              <div className="flex items-center justify-between gap-3">
+                <p>{error}</p>
+                <button onClick={handleRefresh} className="text-xs font-medium hover:underline shrink-0">
+                  Retry
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* ── KPI summary row ── */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
-              { label: 'Total Assets',   value: formatCurrency(totalAssets,     primaryCurrency), color: 'text-foreground',  sub: `${bankAccounts.length} accounts` },
-              { label: 'This Month In',  value: formatCurrency(monthlyIncome,   primaryCurrency), color: 'text-accent-green', sub: 'income' },
-              { label: 'This Month Out', value: formatCurrency(monthlyExpense,  primaryCurrency), color: 'text-foreground',  sub: 'expenses' },
+              { label: 'Total Balance',  value: formatCurrency(totalBalance,    primaryCurrency), color: 'text-foreground',  sub: `${accounts.length} accounts` },
+              { label: 'Total Income',   value: formatCurrency(monthlyIncome,   primaryCurrency), color: 'text-accent-green', sub: isAllBooksView ? 'all books' : 'this book' },
+              { label: 'Total Expenses', value: formatCurrency(monthlyExpense,  primaryCurrency), color: 'text-foreground',  sub: isAllBooksView ? 'all books' : 'this book' },
               {
-                label: 'Net Flow',
-                value: formatCurrency(Math.abs(netFlow), primaryCurrency),
+                label: 'Net Balance',
+                value: formatCurrency(netFlow, primaryCurrency),
                 color: netFlow >= 0 ? 'text-accent-green' : 'text-destructive',
                 sub: netFlow >= 0 ? 'saved' : 'deficit',
               },

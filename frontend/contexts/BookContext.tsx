@@ -8,7 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 interface BookContextType {
   books: Book[];
   activeBook: Book | null;
-  setActiveBookId: (id: number) => void;
+  setActiveBookId: (id: number | null) => void;
   isLoading: boolean;
   refreshBooks: () => Promise<void>;
 }
@@ -16,6 +16,7 @@ interface BookContextType {
 const BookContext = createContext<BookContextType | undefined>(undefined);
 
 const STORAGE_KEY = 'intellspend_active_book';
+const ALL_BOOKS_VALUE = 'all';
 
 export function BookProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
@@ -37,11 +38,16 @@ export function BookProvider({ children }: { children: ReactNode }) {
       setBooks(fetched);
 
       const storedId = localStorage.getItem(STORAGE_KEY);
-      const storedBook = storedId ? fetched.find((b) => b.id === Number(storedId)) : null;
-      const selected = storedBook ?? fetched[0] ?? null;
+      const selected = storedId === ALL_BOOKS_VALUE
+        ? null
+        : storedId
+          ? fetched.find((b) => b.id === Number(storedId)) ?? fetched[0] ?? null
+          : fetched[0] ?? null;
       setActiveBook(selected);
       if (selected) {
         localStorage.setItem(STORAGE_KEY, String(selected.id));
+      } else if (fetched.length > 0) {
+        localStorage.setItem(STORAGE_KEY, ALL_BOOKS_VALUE);
       }
     } catch (error) {
       console.error('Failed to fetch books', error);
@@ -51,14 +57,18 @@ export function BookProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   useEffect(() => {
-    refreshBooks();
+    queueMicrotask(() => {
+      void refreshBooks();
+    });
   }, [refreshBooks]);
 
-  const setActiveBookId = (id: number) => {
-    const book = books.find((b) => b.id === id) ?? null;
+  const setActiveBookId = (id: number | null) => {
+    const book = id == null ? null : books.find((b) => b.id === id) ?? null;
     setActiveBook(book);
     if (book) {
       localStorage.setItem(STORAGE_KEY, String(book.id));
+    } else if (books.length > 0) {
+      localStorage.setItem(STORAGE_KEY, ALL_BOOKS_VALUE);
     }
   };
 

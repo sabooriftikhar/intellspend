@@ -28,7 +28,7 @@ export default function BookSwitcher({ className }: { className?: string }) {
   }
 
   return (
-    <div className={cn('relative', className)}>
+    <div className={cn('relative min-w-32', className)}>
       <div className="pointer-events-none absolute inset-y-0 left-3 flex items-center">
         <BookOpen className="h-3.5 w-3.5 text-muted-foreground" />
       </div>
@@ -36,10 +36,11 @@ export default function BookSwitcher({ className }: { className?: string }) {
         <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
       </div>
       <select
-        value={activeBook?.id ?? ''}
-        onChange={(e) => setActiveBookId(Number(e.target.value))}
+        value={activeBook?.id ?? 'all'}
+        onChange={(e) => setActiveBookId(e.target.value === 'all' ? null : Number(e.target.value))}
         className="h-9 w-full appearance-none rounded-xl border border-border bg-card pl-8 pr-8 text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-ring/30 cursor-pointer"
       >
+        <option value="all">All Books</option>
         {books.map((book) => (
           <option key={book.id} value={book.id}>
             {book.name}

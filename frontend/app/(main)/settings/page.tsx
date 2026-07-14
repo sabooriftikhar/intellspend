@@ -425,20 +425,21 @@ function PreferencesSection() {
             </Label>
             <Select
               id="default-book"
-              value={activeBook?.id ?? ''}
+              value={activeBook?.id ?? 'all'}
               onChange={(e) => {
-                setActiveBookId(Number(e.target.value));
+                setActiveBookId(e.target.value === 'all' ? null : Number(e.target.value));
                 showSaved();
               }}
               className="rounded-xl h-10"
             >
+              <option value="all">All Books</option>
               {books.length === 0 && <option value="">No books yet</option>}
               {books.map((b) => (
                 <option key={b.id} value={b.id}>{b.name}</option>
               ))}
             </Select>
             <p className="text-[11px] text-muted-foreground">
-              Filters the dashboard, transactions, and bills to this book.
+              Filters the dashboard, transactions, and bills to one book or all books.
             </p>
           </div>
         </div>
