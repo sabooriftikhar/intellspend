@@ -350,9 +350,9 @@ export default function ChatPage() {
             <Sparkles className="h-5 w-5 text-accent-green" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-foreground tracking-tight">AI Finance Advisor</h1>
+            <h1 className="text-xl font-bold text-foreground tracking-tight">Intell-AI</h1>
             <p className="text-xs text-muted-foreground">
-              GPT-4o mini · live data · streams token-by-token
+              Your Pernsonal AI Finance Advisor
             </p>
           </div>
         </div>
@@ -378,9 +378,7 @@ export default function ChatPage() {
             </div>
             <div>
               <p className="text-base font-semibold text-foreground">Ask me anything about your finances</p>
-              <p className="text-sm text-muted-foreground mt-1 max-w-sm">
-                I have full access to your accounts, transactions, and bills — refreshed on every message.
-              </p>
+              
             </div>
             <div className="flex flex-wrap justify-center gap-2 max-w-lg">
               {SUGGESTIONS.map((s, i) => {

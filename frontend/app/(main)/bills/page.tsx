@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Plus, Receipt, Pencil, Trash2, Loader2, CheckCircle2,
-  AlertCircle, Clock, Zap, RefreshCw, X, Check, Filter,
+  AlertCircle, Clock, Zap, RefreshCw, X, Check,
 } from 'lucide-react';
 import api from '@/lib/api';
 import { Bill, Account, Category, Book } from '@/lib/types';
@@ -16,6 +16,7 @@ import { formatCurrency } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { useBook } from '@/contexts/BookContext';
 import UpcomingBills from '@/components/dashboard/UpcomingBills';
+import MonthPicker, { PickedMonth } from '@/components/ui/MonthPicker';
 
 // ── Days until helper ─────────────────────────────────────────
 function getDaysUntil(dueDateStr?: string | null, dueDay?: number): number | null {
@@ -199,6 +200,12 @@ export default function BillsPage() {
   const [deleting, setDeleting] = useState<number | null>(null);
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'done'>('all');
 
+  // Month picker
+  const now = new Date();
+  const [selMonth, setSelMonth] = useState<PickedMonth>({ year: now.getFullYear(), month: now.getMonth() });
+  const maxMonth: PickedMonth = { year: now.getFullYear(), month: now.getMonth() };
+  const selMonthStr = `${selMonth.year}-${String(selMonth.month + 1).padStart(2, '0')}`;
+
   const fetchAll = useCallback(async () => {
     try {
       const params = activeBook ? { book_id: activeBook.id } : {};
@@ -224,10 +231,16 @@ export default function BillsPage() {
     finally { setDeleting(null); setConfirmDelete(null); }
   };
 
-  const visible = bills.filter(b => filterStatus === 'all' ? true : b.status === filterStatus);
-  const pendingCount = bills.filter(b => b.status === 'pending').length;
-  const doneCount = bills.filter(b => b.status === 'done').length;
-  const totalPending = bills.filter(b => b.status === 'pending').reduce((s, b) => s + b.estimated_amount, 0);
+  // Filter by selected month (match bill_month field if set, otherwise show all)
+  const monthFiltered = bills.filter(b => {
+    if (!b.bill_month) return true; // no month set → always show
+    return b.bill_month === selMonthStr;
+  });
+
+  const visible = monthFiltered.filter(b => filterStatus === 'all' ? true : b.status === filterStatus);
+  const pendingCount = monthFiltered.filter(b => b.status === 'pending').length;
+  const doneCount    = monthFiltered.filter(b => b.status === 'done').length;
+  const totalPending = monthFiltered.filter(b => b.status === 'pending').reduce((s, b) => s + b.estimated_amount, 0);
 
   const categoryMap = new Map(categories.map(c => [c.id, c]));
 
@@ -250,15 +263,17 @@ export default function BillsPage() {
       </div>
 
       {/* Stats */}
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <MonthPicker value={selMonth} onChange={setSelMonth} maxMonth={maxMonth} />
+        <div className="flex flex-wrap gap-3">
         {[
           { label: 'Pending', val: pendingCount, sub: formatCurrency(totalPending,'USD'), cls:'text-foreground', onClick: () => setFilterStatus('pending') },
           { label: 'Paid this cycle', val: doneCount, sub: '', cls:'text-accent-green', onClick: () => setFilterStatus('done') },
-          { label: 'Total bills', val: bills.length, sub: '', cls:'text-foreground', onClick: () => setFilterStatus('all') },
+          { label: 'Total', val: monthFiltered.length, sub: '', cls:'text-foreground', onClick: () => setFilterStatus('all') },
         ].map(s => (
           <button key={s.label} onClick={s.onClick}
             className={cn('rounded-xl border bg-card px-4 py-3 flex items-center gap-3 hover:bg-secondary transition-colors',
-              filterStatus === (s.label==='Total bills'?'all':s.label==='Pending'?'pending':'done') ? 'border-primary ring-1 ring-primary/20':'border-border')}>
+              filterStatus === (s.label==='Total'?'all':s.label==='Pending'?'pending':'done') ? 'border-primary ring-1 ring-primary/20':'border-border')}>
             <Receipt className="h-4 w-4 text-primary" />
             <div className="text-left">
               <p className="text-xs text-muted-foreground">{s.label}</p>
@@ -267,6 +282,7 @@ export default function BillsPage() {
             </div>
           </button>
         ))}
+        </div>
       </div>
 
       {/* Upcoming widget (pending only) */}

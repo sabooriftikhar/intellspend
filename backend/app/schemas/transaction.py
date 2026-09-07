@@ -32,3 +32,10 @@ class Transaction(TransactionBase):
 
     class Config:
         from_attributes = True
+
+
+class TransactionSummary(BaseModel):
+    income: float
+    expense: float
+    net: float
+    count: int
