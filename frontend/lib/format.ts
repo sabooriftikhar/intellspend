@@ -46,10 +46,43 @@ export function getDaysUntilDue(dueDay: number | null | undefined): number | nul
 
 export function getMonthRange(): { start: string; end: string } {
   const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), 1);
-  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-  const fmt = (d: Date) => d.toISOString().slice(0, 10);
-  return { start: fmt(start), end: fmt(end) };
+  const { start, end } = getMonthRangeFor(now.getFullYear(), now.getMonth());
+  return { start, end };
+}
+
+/** Build a date range for any (year, month) — month is 0-indexed.
+ *  Uses local-date arithmetic (no UTC conversion) to avoid timezone bugs.
+ */
+export function getMonthRangeFor(year: number, month: number): { start: string; end: string; label: string } {
+  // Build YYYY-MM-DD strings directly from numbers — no Date.toISOString() to avoid UTC shift
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const start = `${year}-${pad(month + 1)}-01`;
+
+  // Last day: first day of next month minus 1
+  const nextMonth = month === 11 ? 0 : month + 1;
+  const nextYear  = month === 11 ? year + 1 : year;
+  // Get actual last day by constructing the last day directly
+  const lastDay = new Date(nextYear, nextMonth, 0).getDate(); // getDate() of day-0 = last day of prev month
+  const end = `${year}-${pad(month + 1)}-${pad(lastDay)}`;
+
+  const label = new Date(year, month, 1).toLocaleString('default', { month: 'long', year: 'numeric' });
+  return { start, end, label };
+}
+
+/** Returns last N months as { year, month (0-indexed), label } newest first. */
+export function getLastNMonths(n: number) {
+  const result = [];
+  const now = new Date();
+  for (let i = 0; i < n; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    result.push({
+      year:  d.getFullYear(),
+      month: d.getMonth(),
+      label: d.toLocaleString('default', { month: 'long', year: 'numeric' }),
+      short: d.toLocaleString('default', { month: 'short', year: '2-digit' }),
+    });
+  }
+  return result;
 }
 
 export function groupLabelForDate(dateStr: string): string {
